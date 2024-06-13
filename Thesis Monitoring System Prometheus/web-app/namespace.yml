@@ -1,0 +1,10 @@
+{
+  "kind": "Namespace",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "web-node",
+    "labels": {
+      "name": "web-node"
+    }
+  }
+}

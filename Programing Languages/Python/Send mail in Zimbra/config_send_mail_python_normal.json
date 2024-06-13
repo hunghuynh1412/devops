@@ -1,0 +1,8 @@
+{
+  "smtp_server": "smtp.example.com",
+  "smtp_port": 587,
+  "smtp_user": "user@example.com",
+  "smtp_pass": "password",
+  "email_subject": "Normal Text Subject",
+  "email_content": "This is a normal text email."
+}

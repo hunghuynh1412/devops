@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webauction
+  namespace: web-node
+  labels:
+    app: webauction
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webauction
+  template:
+    metadata:
+      labels:
+        app: webauction
+      annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/path: "/metrics"
+            prometheus.io/port: "3000"
+    spec:
+      containers:
+        - name: webauction
+          image: hunghuynh1412/node-web
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 500m
+              memory: 500M
+            limits:
+              cpu: 1
+              memory: 1Gi           

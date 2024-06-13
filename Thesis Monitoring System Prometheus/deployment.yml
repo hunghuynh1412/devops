@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webAuction-service
+spec:
+  selector:
+    app: webAuction
+  type: NodePort
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30040
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: webAuction
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: webAuction
+      annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/path: '/metrics'
+            prometheus.io/port: "3000"
+    spec:
+      containers:
+        - name: webauction
+          image: hunghuynh1412/node-web
+          ports:
+            - containerPort: 3000

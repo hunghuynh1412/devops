@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+      - /etc/prometheus/kubernetes.alerts
+      - /etc/prometheus/prometheus.alerts   
+      - /etc/prometheus/node.alerts
+      - /etc/prometheus/app.alerts
+alerting:
+      alertmanagers:
+      - static_configs:
+        - targets: ["172.16.70.100:9093"]
+        - targets: ["192.168.2.221:9093"]
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['192.168.2.221:9090']
+
+  - job_name: 'federate'
+    scrape_interval: 15s
+    scrape_timeout: 15s
+    scheme: http
+    honor_labels: true
+    metrics_path: '/federate'
+    params:
+      'match[]':
+        - '{job="prometheus"}'
+        - '{__name__=~".+"}'
+        - '{namespace="monitoring"}'
+    static_configs:
+      - targets:
+        - '192.168.2.222:30000'
+        - '54.179.5.26:9090'
+        - '20.24.8.118:9090'
+  - job_name: 'prometheus_exporter'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['192.168.2.221:9100']

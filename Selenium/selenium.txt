@@ -1,0 +1,14 @@
+#Install python
+Start-Process '.\tools\python-3.7.0.exe' -Wait -ArgumentList '/quiet InstallAllUsers=1 PrependPath=1'
+
+# Create Virtual Environment
+
+$venvPath = ".\myenv"
+
+python -m venv $venvPath
+
+# Activate Virtual Environment
+
+Invoke-Expression "$venvPath\Scripts\Activate"
+
+

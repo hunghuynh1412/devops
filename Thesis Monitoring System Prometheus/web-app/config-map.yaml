@@ -1,0 +1,312 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-server-conf
+  labels:
+    name: prometheus-server-conf
+  namespace: monitoring
+data:
+  kubernetes.alerts: |
+    groups:
+      - name: kubernetes_alerts
+        rules:
+        - alert: DeploymentGenerationOff
+          expr: kube_deployment_status_observed_generation != kube_deployment_metadata_generation
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: Deployment generation does not match expected generation {{ $labels.namespace }}/{{ $labels.deployment }}
+            summary: Deployment is outdated
+        - alert: DeploymentReplicasNotUpdated
+          expr: ((kube_deployment_status_replicas_updated != kube_deployment_spec_replicas)
+            or (kube_deployment_status_replicas_available != kube_deployment_spec_replicas))
+            unless (kube_deployment_spec_paused == 1)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: Replicas are not updated and available for deployment {{ $labels.namespace }}/{{ $labels.deployment }}
+            summary: Deployment replicas are outdated
+        - alert: PodzFrequentlyRestarting
+          expr: increase(kube_pod_container_status_restarts_total[1h]) > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            description: Pod {{ $labels.namespace }}/{{ $labels.pod }} was restarted {{ $value }} times within the last hour
+            summary: Pod is restarting frequently
+        - alert: KubeNodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            description: The Kubelet on {{ $labels.node }} has not checked in with the API,
+              or has set itself to NotReady, for more than an hour
+            summary: Node status is NotReady
+        - alert: KubeManyNodezNotReady
+          expr: count(kube_node_status_condition{condition="Ready",status="true"} == 0)
+            > 1 and (count(kube_node_status_condition{condition="Ready",status="true"} ==
+            0) / count(kube_node_status_condition{condition="Ready",status="true"})) > 0.2
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            description: '{{ $value }}% of Kubernetes nodes are not ready'
+        - alert: APIHighLatency
+          expr: apiserver_latency_seconds:quantile{quantile="0.99",subresource!="log",verb!~"^(?:WATCH|WATCHLIST|PROXY|CONNECT)$"} > 4
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            description: the API server has a 99th percentile latency of {{ $value }} seconds for {{ $labels.verb }} {{ $labels.resource }}
+        - alert: APIServerErrorsHigh
+          expr: rate(apiserver_request_count{code=~"^(?:5..)$"}[5m]) / rate(apiserver_request_count[5m]) * 100 > 5
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            description: API server returns errors for {{ $value }}% of requests
+        - alert: KubernetesAPIServerDown
+          expr: up{job="kubernetes-apiservers"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Apiserver {{ $labels.instance }} is down!
+        - alert: KubernetesAPIServersGone
+          expr:  absent(up{job="kubernetes-apiservers"})
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: No Kubernetes apiservers are reporting!
+            description: Werner Heisenberg says - OMG Where are my apiserverz?
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.99, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.99"
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.9, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.9"
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.5, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.5"
+  prometheus.alerts: |
+    groups:
+    - name: prometheus_alerts
+      rules:
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          description: Reloading Prometheus configuration has failed on {{$labels.instance}}.
+      - alert: PrometheusNotConnectedToAlertmanagers
+        expr: prometheus_notifications_alertmanagers_discovered < 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          description: Prometheus {{ $labels.instance}} is not connected to any Alertmanagers
+  # node.alerts: |
+  #   groups:
+  #   - name: node_alerts
+  #     rules:
+  #     - alert: HighNodeCPU
+  #       expr: instance:node_cpu:avg_rate5m > 80
+  #       for: 10s
+  #       labels:
+  #         severity: warning
+  #       annotations:
+  #         summary: High Node CPU of {{ humanize $value}}% for 1 hour
+  #     - alert: DiskWillFillIn4Hours
+  #       expr: predict_linear(node_filesystem_free_bytes{mountpoint="/"}[1h], 4*3600) < 0
+  #       for: 5m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: Disk on {{ $labels.instance }} will fill in approximately 4 hours.
+  #     - alert: KubernetesServiceDown
+  #       expr: up{job="kubernetes-service-endpoints"} == 0
+  #       for: 10m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: Pod {{ $labels.instance }} is down!
+  #     - alert: KubernetesServicesGone
+  #       expr:  absent(up{job="kubernetes-service-endpoints"})
+  #       for: 10m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: No Kubernetes services are reporting!
+  #         description: Werner Heisenberg says - OMG Where are my servicez?
+  #     - alert: CriticalServiceDown
+  #       expr: node_systemd_unit_state{state="active"} != 1
+  #       for: 2m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: Service {{ $labels.name }} failed to start.
+  #         description: Service {{ $labels.instance }} failed to (re)start service {{ $labels.name }}.
+  prometheus.yml: |-
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+    rule_files:
+      - /etc/prometheus/prometheus.alert
+      - /etc/prometheus/kubernetes_alerts
+    # alerting:
+    #   alertmanagers:
+    #   - scheme: http
+    #     static_configs:
+    #     - targets:
+    #       - "alertmanager.monitoring.svc:9093"
+
+    scrape_configs:
+      # - job_name: 'os-metrics'
+      #   kubernetes_sd_configs:
+      #     - role: endpoints
+      #   relabel_configs:
+      #   - source_labels: [__meta_kubernetes_endpoints_name]
+      #     regex: 'node-exporter'
+      #     action: keep
+      #   static_configs:
+      #   - targets: ['192.168.2.221:9100']
+      #   - targets: ['192.168.2.222:9100']
+      #   - targets: ['192.168.2.223:9100']
+      #   - targets: ['192.168.2.224:9100']
+      - job_name: 'node_k8s_cluster'
+        scrape_interval: 5s
+        static_configs:
+        - targets: ['192.168.2.222:9100']
+        - targets: ['192.168.2.223:9100']
+        - targets: ['192.168.2.224:9100']
+
+      # - job_name: 'node-exporter'
+      #   kubernetes_sd_configs:
+      #     - role: endpoints
+      #   relabel_configs:
+      #   - source_labels: [__meta_kubernetes_endpoints_name]
+      #     regex: 'node-exporter'
+      #     action: keep
+      
+      # - job_name: 'kubernetes-apiservers'
+
+      #   kubernetes_sd_configs:
+      #   - role: endpoints
+      #   scheme: https
+
+      #   tls_config:
+      #     ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      #   relabel_configs:
+      #   - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+      #     action: keep
+      #     regex: default;kubernetes;https
+
+      # - job_name: 'kubernetes-nodes'
+
+      #   scheme: https
+
+      #   tls_config:
+      #     ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      #   kubernetes_sd_configs:
+      #   - role: node
+
+      #   relabel_configs:
+      #   - action: labelmap
+      #     regex: __meta_kubernetes_node_label_(.+)
+      #   - target_label: __address__
+      #     replacement: kubernetes.default.svc:443
+      #   - source_labels: [__meta_kubernetes_node_name]
+      #     regex: (.+)
+      #     target_label: __metrics_path__
+      #     replacement: /api/v1/nodes/${1}/proxy/metrics     
+      
+      - job_name: 'kubernetes-pods'
+
+        kubernetes_sd_configs:
+        - role: pod
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+
+      - job_name: 'kubernetes-cadvisor'
+
+        scheme: https
+
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+        - role: node
+
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+      
+      - job_name: 'kubernetes-service-endpoints'
+
+        kubernetes_sd_configs:
+        - role: endpoints
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_name

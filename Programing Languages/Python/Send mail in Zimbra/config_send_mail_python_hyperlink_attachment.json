@@ -1,0 +1,13 @@
+{
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "smtp_user": "user@example.com",
+    "smtp_pass": "password",
+    "email_subject": "Text with Hyperlink and Attachment",
+    "email_content": "This email has a hyperlink and an attachment.",
+    "hyperlink": {
+        "url": "https://www.example.com",
+        "text": "Click Here"
+    },
+    "attachments": ["path/to/attachment1.txt", "path/to/attachment2.pdf"]
+}

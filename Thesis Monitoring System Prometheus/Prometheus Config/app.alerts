@@ -1,0 +1,67 @@
+groups:
+    - name: app_alerts
+      rules:
+      - alert: LowError404HttpRequest
+        expr: http_server_requests_seconds_count{status="404"} > 300.0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: Client have some bad requests
+          description: Have Low Error 404 Http Request
+      - alert: HighError404HttpRequest
+        expr: http_server_requests_seconds_count{status="404"} > 800.0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: app java {{ $labels.instance}} don't active web page 
+          description: Web page not found
+      - alert: HighWaitingThread
+        expr: jvm_threads_states_threads{state="waiting",} > 200.0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: app java {{ $labels.instance}} ran out of queue 
+          description: Too many requests in queue have been waiting
+      - alert: HighMemoryUsedJAVA
+        expr: (jvm_memory_used_bytes/jvm_memory_max_bytes)*100 > 80.0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: app java {{ $labels.instance}} ran out of memory 80% 
+          description: Too many memory have been using for a app java more than 80%
+      - alert: HighProcessOpenfds
+        expr: (process_open_fds/process_max_fds)*100 > 80.0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: app node js {{ $labels.instance}} have more than 80% process fds 
+          description: Too many requests for open fds
+      - alert: HighSocketConnection
+        expr: nodejs_active_handles{type="Socket",} > 100.0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: app node js {{ $labels.instance}} have many more than 100 socket connection 
+          description: Too many socket connect to server app node js
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus target missing {{ $labels.instance}}
+          description: A Prometheus target has disappeared. An exporter might be crashed
+      - alert: HostHighCpuLoad
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+        for: 0s
+        labels:
+         severity: warning
+        annotations:
+          summary: Host high CPU load (instance {{ $labels.instance }})
+          description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

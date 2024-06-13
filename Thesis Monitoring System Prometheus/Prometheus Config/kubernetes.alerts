@@ -1,0 +1,112 @@
+groups:
+      - name: kubernetes_alerts
+        rules:
+        - alert: DeploymentGenerationOff
+          expr: kube_deployment_status_observed_generation != kube_deployment_metadata_generation
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: Deployment generation does not match expected generation {{ $labels.namespace }}/{{ $labels.deployment }}
+            summary: Deployment is outdated
+        - alert: DeploymentReplicasNotUpdated
+          expr: ((kube_deployment_status_replicas_updated != kube_deployment_spec_replicas)
+            or (kube_deployment_status_replicas_available != kube_deployment_spec_replicas))
+            unless (kube_deployment_spec_paused == 1)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: Replicas are not updated and available for deployment {{ $labels.namespace }}/{{ $labels.deployment }}
+            summary: Deployment replicas are outdated
+        - alert: OutOfMemory
+          expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Out of memory (instance {{ $labels.instance }})"
+            description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+        - alert: ContainerKilled
+          expr: time() - container_last_seen > 60
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container killed (instance {{ $labels.instance }})"
+            description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+        - alert: NodeExitK8s
+          expr: kubelet_node_name == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node exited (instance {{ $labels.instance }})"
+            description: "A noder has disappeared\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+        - alert: PodzFrequentlyRestarting
+          expr: increase(kube_pod_container_status_restarts_total[1h]) > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            description: Pod {{ $labels.namespace }}/{{ $labels.pod }} was restarted {{ $value }} times within the last hour
+            summary: Pod is restarting frequently
+        - alert: KubeNodeNotReady
+          expr: kubelet_node_config_error{ job="kubernetes-nodes",} == 1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            description: The Kubelet on {{ $labels.node }} has not checked in with the API,
+              or has set itself to NotReady, for more than an hour
+            summary: Node status is NotReady
+        - alert: KubeManyNodezNotReady
+          expr: count(kube_node_status_condition{condition="Ready",status="true"} == 0)
+            > 1 and (count(kube_node_status_condition{condition="Ready",status="true"} ==
+            0) / count(kube_node_status_condition{condition="Ready",status="true"})) > 0.2
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            description: '{{ $value }}% of Kubernetes nodes are not ready'
+        - alert: APIHighLatency
+          expr: apiserver_latency_seconds:quantile{quantile="0.99",subresource!="log",verb!~"^(?:WATCH|WATCHLIST|PROXY|CONNECT)$"} > 4
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            description: the API server has a 99th percentile latency of {{ $value }} seconds for {{ $labels.verb }} {{ $labels.resource }}
+        - alert: APIServerErrorsHigh
+          expr: rate(apiserver_request_count{code=~"^(?:5..)$"}[5m]) / rate(apiserver_request_count[5m]) * 100 > 5
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            description: API server returns errors for {{ $value }}% of requests
+        - alert: KubernetesAPIServerDown
+          expr: up{job="kubernetes-apiservers"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Apiserver {{ $labels.instance }} is down!
+        - alert: KubernetesAPIServersGone
+          expr:  absent(up{job="kubernetes-apiservers"})
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: No Kubernetes apiservers are reporting!
+            description: Werner Heisenberg says - OMG Where are my apiserverz?
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.99, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.99"
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.9, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.9"
+        - record: apiserver_latency_seconds:quantile
+          expr: histogram_quantile(0.5, rate(apiserver_request_latencies_bucket[5m])) / 1e+06
+          labels:
+            quantile: "0.5"

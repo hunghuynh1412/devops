@@ -1,0 +1,5 @@
+11/02/2023 11:02:36
+Detected Windows version: 10.0.18363
+Choosing Python 3.7 installer
+Installing Python...
+Error during Python installation.
